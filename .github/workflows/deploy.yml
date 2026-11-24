@@ -1,0 +1,34 @@
+name: Deploy Approved Fraud Model
+
+on:
+  repository_dispatch:
+    types: [model-approved]
+
+permissions:
+  id-token: write   # required for OIDC role assumption
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install boto3
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Deploy approved model
+        env:
+          # Passed through env (not inlined in the run line) so the payload can't inject shell commands
+          MODEL_PACKAGE_ARN: ${{ github.event.client_payload.model_package_arn }}
+        run: python deploy_endpoint.py "$MODEL_PACKAGE_ARN"
